@@ -2,15 +2,37 @@
 ;; Provides editing functionality for the ion-shell
 
 ;;; Commentary:
-;; Currently provides syntax highlighting
+;; Currently provides syntax highlighting and indentation
 
 ;;; Code:
 
-
 (define-derived-mode ion-mode prog-mode "ion"
-  "major mode for editing ion scripts"
+    "major mode for editing ion scripts"
+  (defvar ion-indent-forward-keywords
+    '("if" "fn" "for" "while")
+    "ion-shell keywords that should cause an indent")
+    
+  (defvar ion-indent-backwards-keywords
+    '("end")
+    "ion-shell keywords that should decrease the indent")
+  
+  (defvar ion-indent-neutral-keywords
+    '("alias" "and" "bg" "break" "calc" "case" "cd" "complete"
+      "continue" "count" "dirs" "disown" "drop" "echo" "else"
+      "eval" "exec" "exit" "false" "fg" "help"
+      "history" "in" "jobs" "let" "match" "matches" "mkdir"
+      "not" "or" "popd" "pushd" "pwd" "read" "set" "source"
+      "status" "suspend" "test" "time" "true" "unalias" "wait")
+    "ion-shell keywords that don't effect indentation")
+
+  (defun ion-keywords ()
+    "A list of all ion-shell keywords"
+    (append ion-indent-forward-keywords
+	    ion-indent-backwards-keywords
+	    ion-indent-neutral-keywords))
 
   (defvar ion-indent-spaces t "use spaces for indentation")
+  
   (setq ion-mode-syntax-table
 	(let ((syn-table (make-syntax-table prog-mode-syntax-table)))
 					;single quotes are strings
@@ -20,12 +42,15 @@
 	  (modify-syntax-entry ?\n ">" syn-table)
 	  syn-table
 	  ))
+  
   (set-syntax-table ion-mode-syntax-table)
+  
   (setq ion-mode-highlights
 	(list (cons (regexp-opt
-		     '("in" "if" "else" "let" "for" "end" "echo" "test")
-		     'words) font-lock-keyword-face)
-	      ))
+		     (ion-keywords)
+		     'words)
+		    font-lock-keyword-face)))
+  
   (defun ion-find-quote-variables (limit regexp)
     "Used to find variables in quotes"
     (let ((original-match-data nil))
@@ -49,10 +74,10 @@
 	    (nth 4 state) ; inside a comment
 	    ))))
     
-
   (defun ion-indentation-level (point)
-    (let ((indent-end 0)(indent-begin 0)(end (regexp-opt '("end") 'word))
-	  (begin (regexp-opt '("if" "fn" "for"))))
+    (let ((indent-end 0)(indent-begin 0)
+	  (end (regexp-opt ion-indent-backwards-keywords 'word))
+	  (begin (regexp-opt ion-indent-forward-keywords)))
       (save-excursion
 	(goto-char point)
 	(end-of-line)
@@ -73,9 +98,14 @@
       (forward-line 0)
       (let ((end-point (re-search-forward "[\t ]*" (line-end-position) t)))
 	(delete-region (line-beginning-position) (point))
-	(insert repl)
-	))
-    )
+	(insert repl))))
+
+  (defun ion-replace-whitespace-end-line (pos repl)
+    (save-excursion
+      (end-of-line)
+      (let ((begin-point (re-search-backward "[[:graph:]]" (line-beginning-position) t)))
+	(delete-region (+ 1 (point)) (line-end-position))
+	(insert repl))))
 
   (defun ion-indent-line ()
     (ion-replace-whitespace-begin-line
@@ -84,14 +114,22 @@
 	       (if ion-indent-spaces
 		   (make-string (* 4 indent) ? )
 		 (make-string indent ?\t))))
-    (if (save-excursion
-	  (progn (forward-line 0) (= (re-search-forward
-				      "[\t ]*" (line-end-position) t)
-				     (line-end-position))))
-	(end-of-line)))
+    (let ((non-whitespace
+	   (save-excursion
+	     (progn (forward-line 0)
+		    (re-search-forward
+		     "[\t ]*" (line-end-position) t)))))
+    (if (= non-whitespace (line-end-position))
+	(end-of-line)
+      (if (> non-whitespace (point))
+	  (goto-char non-whitespace))
+      ))
+    (ion-replace-whitespace-end-line (point) "")
+    )
+    
   
   (setq font-lock-defaults '(ion-mode-highlights))
-  (setq ion-mode-keywords "\\(if\\|else\\|let\\|for\\|in\\)")
+  
   (font-lock-add-keywords 'ion-mode
 			  '(
 			    ("\\(fn\\) \\([a-z|A-Z|\\-]+\\)"
@@ -99,7 +137,7 @@
 			     (1 font-lock-keyword-face)
 			     ;; fontify fn name as fn name
 			     (2 font-lock-function-name-face))
-			    ("\\([$@]\\)\\([A-z]+\\)" 
+			    ("\\([$@]\\)\\([A-z]+\\)"
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face))
 			    ("\\([$@]{\\)\\([A-z| |]*\\)\\(}\\)"
