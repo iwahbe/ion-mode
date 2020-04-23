@@ -7,11 +7,12 @@
 ;;; Code:
 
 (define-derived-mode ion-mode prog-mode "ion"
-    "major mode for editing ion scripts"
+  "major mode for editing ion scripts"
+  
   (defvar ion-indent-forward-keywords
     '("if" "fn" "for" "while")
     "ion-shell keywords that should cause an indent")
-    
+  
   (defvar ion-indent-backwards-keywords
     '("end")
     "ion-shell keywords that should decrease the indent")
@@ -42,14 +43,18 @@
 	  (modify-syntax-entry ?\n ">" syn-table)
 	  syn-table
 	  ))
+
+  (setq comment-start "#")
+  (setq comment-padding " ")
   
   (set-syntax-table ion-mode-syntax-table)
   
-  (setq ion-mode-highlights
-	(list (cons (regexp-opt
-		     (ion-keywords)
-		     'words)
-		    font-lock-keyword-face)))
+  (defvar ion-mode-highlights
+    (list (cons (regexp-opt
+		 (ion-keywords)
+		 'words)
+		font-lock-keyword-face))
+    "regexp optimal for of keywords to highlight")
   
   (defun ion-find-quote-variables (limit regexp)
     "Used to find variables in quotes"
@@ -62,37 +67,57 @@
 	      (setq original-match-data (match-data))
 	    (forward-char 1)
 	    )))
-	  (when original-match-data
-	    (set-match-data original-match-data)
-	    (goto-char (match-end 0))
-	    t)))
+      (when original-match-data
+	(set-match-data original-match-data)
+	(goto-char (match-end 0))
+	t)))
 
+  (declare-function ion-is-command "ion-mode" (pos))
   (defun ion-is-command (pos)
     (let ((state (syntax-ppss pos)))
       (not (or
 	    (nth 3 state) ; inside a string
 	    (nth 4 state) ; inside a comment
 	    ))))
-    
-  (defun ion-indentation-level (point)
-    (let ((indent-end 0)(indent-begin 0)
-	  (end (regexp-opt ion-indent-backwards-keywords 'word))
-	  (begin (regexp-opt ion-indent-forward-keywords)))
-      (save-excursion
-	(goto-char point)
-	(end-of-line)
-	(while (re-search-backward end (point-min) t)
-	  (if (ion-is-command (point))
-	  (setq indent-end (1+ indent-end)))))
-      (save-excursion
-	(goto-char point)
-	(beginning-of-line)
-	(while (re-search-backward begin (point-min) t)
-	  (if (ion-is-command (point))
-	  (setq indent-begin (1+ indent-begin)))))
-      (max 0 (- indent-begin indent-end))
-      ))
   
+  (declare-function ion-line-has "ion-mode" (point regx))
+  (defun ion-line-has (point regx)
+    (save-excursion
+      (beginning-of-line)
+      (re-search-forward regx (line-end-position) t)))
+  
+  (defun ion-indentation-level (point)
+    "Returns a pair, the indentation level and the display offset"
+    (let ((indent-level 0) (display-level 0))
+      (save-excursion
+	(beginning-of-line)
+	(while (re-search-forward
+		(regexp-opt ion-indent-forward-keywords 'word)
+		(line-end-position) t)
+	  (if (and (ion-is-command (point))
+		   (not (ion-line-has (point) (regexp-opt '("else if") 'word))))
+	      (setq indent-level (1+ indent-level)
+		    display-level (1- display-level))))
+	(beginning-of-line)
+	(while (re-search-forward
+		(regexp-opt ion-indent-backwards-keywords 'word)
+		(line-end-position) t)
+	  (if (ion-is-command (point)) (setq indent-level (1- indent-level))))
+	(beginning-of-line)
+	(while (re-search-forward (regexp-opt '("else" "else if") 'word)
+				  (line-end-position) t)
+	  (setq display-level (1- display-level)))
+	)
+      (forward-line 0)
+      (unless (= (point) (point-min))
+	(forward-char -1))
+      (cons
+       ;; the max helps small indentation errors from disturbing an entire
+       ;; project, but it does make debugging harder
+       (max 0 (+ (if (= (point) (point-min)) 0 (car (ion-indentation-level (point))))
+		 indent-level))
+       display-level)))
+
   (defun ion-replace-whitespace-begin-line (pos repl)
     (save-excursion
       (forward-line 0)
@@ -103,30 +128,35 @@
   (defun ion-replace-whitespace-end-line (pos repl)
     (save-excursion
       (end-of-line)
-      (let ((begin-point (re-search-backward "[[:graph:]]" (line-beginning-position) t)))
-	(delete-region (+ 1 (point)) (line-end-position))
+      (let ((begin-point (re-search-backward
+			  "[[:graph:]]" (line-beginning-position) t)))
+	(if (not (>= (1+ (point)) (line-end-position)))
+	    (delete-region (1+ (point)) (line-end-position)))
 	(insert repl))))
 
   (defun ion-indent-line ()
     (ion-replace-whitespace-begin-line
-     (point) (let ((indent (max (ion-indentation-level
-				 (line-beginning-position)) 0)))
+     (point) (let* (
+		    (indent (save-excursion (ion-indentation-level
+					     (line-beginning-position))))
+		    (display-indent (+ (car indent) (cdr indent))))
 	       (if ion-indent-spaces
-		   (make-string (* 4 indent) ? )
-		 (make-string indent ?\t))))
+		   (make-string (* 4 display-indent) ? )
+		 (make-string display-indent ?\t))))
+    ;; 
     (let ((non-whitespace
 	   (save-excursion
 	     (progn (forward-line 0)
 		    (re-search-forward
 		     "[\t ]*" (line-end-position) t)))))
-    (if (= non-whitespace (line-end-position))
-	(end-of-line)
-      (if (> non-whitespace (point))
-	  (goto-char non-whitespace))
-      ))
+      (if (= non-whitespace (line-end-position))
+	  (end-of-line)
+	(if (> non-whitespace (point))
+	    (goto-char non-whitespace))
+	))
     (ion-replace-whitespace-end-line (point) "")
     )
-    
+  
   
   (setq font-lock-defaults '(ion-mode-highlights))
   
@@ -144,14 +174,15 @@
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face)
 			     (3 font-lock-builtin-face))
-			    ;; doesn't work
-			    ("\\(\\[|\\]\\)" 0 font-lock-builtin-face)
-			    ;; ("\\(\".*?\"\\)" 0 font-lock-string-face keep)
+			    ("\\([$@](\\)\\([A-z| |]*\\)\\()\\)"
+			     (1 font-lock-builtin-face)
+			     (2 font-lock-variable-name-face)
+			     (3 font-lock-builtin-face))
 			    ((lambda (l)
 			       (ion-find-quote-variables
 				l "\\([$@]\\)\\([A-z]+\\)"))
 			     1 font-lock-builtin-face t)
-					
+			    
 			    ((lambda (l)
 			       (ion-find-quote-variables
 				l "\\([$@]\\)\\([A-z]+\\)"))
@@ -163,5 +194,3 @@
 
 (provide 'ion-mode)
 ;;; ion-mode ends here
-
-
