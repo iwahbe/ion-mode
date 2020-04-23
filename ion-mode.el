@@ -9,6 +9,8 @@
 
 (define-derived-mode ion-mode prog-mode "ion"
   "major mode for editing ion scripts"
+
+  (defvar ion-indent-spaces t "use spaces for indentation")
   (setq ion-mode-syntax-table
 	(let ((syn-table (make-syntax-table prog-mode-syntax-table)))
 					;single quotes are strings
@@ -39,6 +41,54 @@
 	    (set-match-data original-match-data)
 	    (goto-char (match-end 0))
 	    t)))
+
+  (defun ion-is-command (pos)
+    (let ((state (syntax-ppss pos)))
+      (not (or
+	    (nth 3 state) ; inside a string
+	    (nth 4 state) ; inside a comment
+	    ))))
+    
+
+  (defun ion-indentation-level (point)
+    (let ((indent-end 0)(indent-begin 0)(end (regexp-opt '("end") 'word))
+	  (begin (regexp-opt '("if" "fn" "for"))))
+      (save-excursion
+	(goto-char point)
+	(end-of-line)
+	(while (re-search-backward end (point-min) t)
+	  (if (ion-is-command (point))
+	  (setq indent-end (1+ indent-end)))))
+      (save-excursion
+	(goto-char point)
+	(beginning-of-line)
+	(while (re-search-backward begin (point-min) t)
+	  (if (ion-is-command (point))
+	  (setq indent-begin (1+ indent-begin)))))
+      (max 0 (- indent-begin indent-end))
+      ))
+  
+  (defun ion-replace-whitespace-begin-line (pos repl)
+    (save-excursion
+      (forward-line 0)
+      (let ((end-point (re-search-forward "[\t ]*" (line-end-position) t)))
+	(delete-region (line-beginning-position) (point))
+	(insert repl)
+	))
+    )
+
+  (defun ion-indent-line ()
+    (ion-replace-whitespace-begin-line
+     (point) (let ((indent (max (ion-indentation-level
+				 (line-beginning-position)) 0)))
+	       (if ion-indent-spaces
+		   (make-string (* 4 indent) ? )
+		 (make-string indent ?\t))))
+    (if (save-excursion
+	  (progn (forward-line 0) (= (re-search-forward
+				      "[\t ]*" (line-end-position) t)
+				     (line-end-position))))
+	(end-of-line)))
   
   (setq font-lock-defaults '(ion-mode-highlights))
   (setq ion-mode-keywords "\\(if\\|else\\|let\\|for\\|in\\)")
@@ -69,6 +119,8 @@
 				l "\\([$@]\\)\\([A-z]+\\)"))
 			     2 font-lock-variable-name-face t)
 			    ))
+
+  (setq indent-line-function #'ion-indent-line)
   )
 
 (provide 'ion-mode)
