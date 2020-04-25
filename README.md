@@ -26,4 +26,6 @@ specific indentation. Details can be found in `ion-mode.el`, but nothing should
 require customization.
 
 Example:
+
 ![Fibonacci code example](fib.jpg)
+
