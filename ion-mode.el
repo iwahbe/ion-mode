@@ -2,7 +2,66 @@
 ;; Provides editing functionality for the ion-shell
 
 ;;; Commentary:
-;; Currently provides syntax highlighting and indentation
+;; Currently provides syntax highlighting and indentation.
+;; Syntax highlighting works on keywords returned with
+;; 
+;;                 (ion-keywords)
+;;
+;; and uses font-lock-keyword-face.  Comments are highlighted with
+;; font-lock-comment-face.  Variables are highlighted with
+;; font-lock-variable-name-face if defined outside of comments or single quoted
+;; text.  Function names are highlighted with font-lock-function-name-face, but
+;; only where they are defined.
+;;
+;; Indentation is calculated by sorting some keywords in to 3 categories.  One
+;; category is indent-forward, which means there should be an indent following
+;; this line.  This category is defined in the variable
+;; 'ion-indent-forward-keywords'
+;; Example:
+;;
+;;            if test 1 -le 0    # if is indent-forward
+;;                echo indented  # so the next line is indented
+;;
+;; This works similarly to indent-backwards, except indent-backwards takes
+;; effect immediately.
+;; Example:
+;;
+;;                echo "done indenting" # this line is indented
+;;            end                       # end is indent-backwards
+;;
+;; There is one more category, which doesn't effect indentation, but does change
+;; how the line itself is displayed.  This category currently contains only
+;; 'else' and 'if else'.
+;; Example:
+;;
+;;            if test $x -le $y
+;;                echo "$x > $y"
+;;            else
+;;                echo "$x < $y"
+;;            end
+
+
+;; MIT License
+;; 
+;; Copyright (c) 2020 Ian Wahbe
+;; 
+;; Permission is hereby granted, free of charge, to any person obtaining a copy
+;; of this software and associated documentation files (the "Software"), to deal
+;; in the Software without restriction, including without limitation the rights
+;; to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+;; copies of the Software, and to permit persons to whom the Software is
+;; furnished to do so, subject to the following conditions:
+;; 
+;; The above copyright notice and this permission notice shall be included in
+;; all copies or substantial portions of the Software.
+;; 
+;; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+;; IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+;; FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+;; AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+;; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+;; SOFTWARE.
 
 ;;; Code:
 
@@ -44,6 +103,7 @@
 	  syn-table
 	  ))
 
+  ;; Used to automate comment insertion
   (setq comment-start "#")
   (setq comment-padding " ")
   
@@ -73,7 +133,9 @@
 	t)))
 
   (declare-function ion-is-command "ion-mode" (pos))
+  
   (defun ion-is-command (pos)
+    "Checks if 'pos' is inside a string or comment"
     (let ((state (syntax-ppss pos)))
       (not (or
 	    (nth 3 state) ; inside a string
@@ -81,13 +143,20 @@
 	    ))))
   
   (declare-function ion-line-has "ion-mode" (point regx))
-  (defun ion-line-has (point regx)
+  
+  (defun ion-line-has (pos regx)
+    "Checks if the line containing 'point' contains 'regx'"
     (save-excursion
       (beginning-of-line)
       (re-search-forward regx (line-end-position) t)))
   
   (defun ion-indentation-level (point)
     "Returns a pair, the indentation level and the display offset"
+    ;; This function works by recursing up to the top of the screen each call
+    ;; finds the indentation change of the current line and adds it to the past
+    ;; line. Some keywords have a special relation to indentation, like 'else'
+    ;; which is what the second part of the cons returned is for. This is
+    ;; calculated for a line only, and not used recursively.
     (let ((indent-level 0) (display-level 0))
       (save-excursion
 	(beginning-of-line)
@@ -106,8 +175,7 @@
 	(beginning-of-line)
 	(while (re-search-forward (regexp-opt '("else" "else if") 'word)
 				  (line-end-position) t)
-	  (setq display-level (1- display-level)))
-	)
+	  (setq display-level (1- display-level))))
       (forward-line 0)
       (unless (= (point) (point-min))
 	(forward-char -1))
@@ -119,6 +187,7 @@
        display-level)))
 
   (defun ion-replace-whitespace-begin-line (pos repl)
+    "Replaces whitespace before any charicter text on the line where 'pos' is with repl"
     (save-excursion
       (forward-line 0)
       (let ((end-point (re-search-forward "[\t ]*" (line-end-position) t)))
@@ -126,6 +195,7 @@
 	(insert repl))))
 
   (defun ion-replace-whitespace-end-line (pos repl)
+    "Replaces whitespace at the end of the line where 'pos' is with repl"
     (save-excursion
       (end-of-line)
       (let ((begin-point (re-search-backward
@@ -162,31 +232,56 @@
   
   (font-lock-add-keywords 'ion-mode
 			  '(
-			    ("\\(fn\\) \\([a-z|A-Z|\\-]+\\)"
+			    ("\\(fn\\) \\([a-z|A-Z|_|\\-]+\\)"
 			     ;; fontify fn as keyword
 			     (1 font-lock-keyword-face)
 			     ;; fontify fn name as fn name
 			     (2 font-lock-function-name-face))
-			    ("\\([$@]\\)\\([A-z]+\\)"
+			    ("\\([$@]\\)\\([A-Z|a-z|_]+\\)"
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face))
-			    ("\\([$@]{\\)\\([A-z| |]*\\)\\(}\\)"
+			    ("\\([$@]{\\)\\([A-Z|a-z| |_]*\\)\\(}\\)"
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face)
 			     (3 font-lock-builtin-face))
-			    ("\\([$@](\\)\\([A-z| |]*\\)\\()\\)"
+			    ("\\([$@](\\)\\([A-Z|a-z| |_]*\\)\\()\\)"
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face)
 			     (3 font-lock-builtin-face))
+			    ;; this highlights test in variables
 			    ((lambda (l)
 			       (ion-find-quote-variables
-				l "\\([$@]\\)\\([A-z]+\\)"))
+				l "\\([$@]\\)\\([A-Z|a-z|_]+\\)"))
 			     1 font-lock-builtin-face t)
 			    
 			    ((lambda (l)
 			       (ion-find-quote-variables
-				l "\\([$@]\\)\\([A-z]+\\)"))
+				l "\\([$@]\\)\\([A-Z|a-z|_]+\\)"))
 			     2 font-lock-variable-name-face t)
+			    ((lambda (l)
+			       (ion-find-quote-variables
+				l "\\([$@]{\\)\\([A-Z|a-z|_]+\\)\\(}\\)"))
+			     2 font-lock-variable-name-face t)
+			    ((lambda (l)
+			       (ion-find-quote-variables
+				l "\\([$@]{\\)\\([A-Z|a-z|_]+\\)\\(}\\)"))
+			     1 font-lock-builtin-face t)
+			    ((lambda (l)
+			       (ion-find-quote-variables
+				l "\\([$@]{\\)\\([A-Z|a-z|_]+\\)\\(}\\)"))
+			     3 font-lock-builtin-face t)
+			    			    ((lambda (l)
+			       (ion-find-quote-variables
+				l "\\([$@](\\)\\([A-Z|a-z|_]+\\)\\()\\)"))
+			     2 font-lock-variable-name-face t)
+			    ((lambda (l)
+			       (ion-find-quote-variables
+				l "\\([$@](\\)\\([A-Z|a-z|_]+\\)\\()\\)"))
+			     1 font-lock-builtin-face t)
+			    ((lambda (l)
+			       (ion-find-quote-variables
+				l "\\([$@](\\)\\([A-Z|a-z|_]+\\)\\()\\)"))
+			     3 font-lock-builtin-face t)
 			    ))
 
   (setq indent-line-function #'ion-indent-line)
