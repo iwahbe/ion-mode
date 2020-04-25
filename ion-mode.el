@@ -90,8 +90,6 @@
     (append ion-indent-forward-keywords
 	    ion-indent-backwards-keywords
 	    ion-indent-neutral-keywords))
-
-  (defvar ion-indent-spaces t "use spaces for indentation")
   
   (setq ion-mode-syntax-table
 	(let ((syn-table (make-syntax-table prog-mode-syntax-table)))
@@ -205,12 +203,13 @@
 	(insert repl))))
 
   (defun ion-indent-line ()
+    "Indent's the current line according to ion-mode, removing excess whitespace"
     (ion-replace-whitespace-begin-line
-     (point) (let* (
-		    (indent (save-excursion (ion-indentation-level
-					     (line-beginning-position))))
-		    (display-indent (+ (car indent) (cdr indent))))
-	       (if ion-indent-spaces
+     (point) (let*
+		 ((indent (save-excursion (ion-indentation-level
+					   (line-beginning-position))))
+		  (display-indent (+ (car indent) (cdr indent))))
+	       (if (not indent-tabs-mode)
 		   (make-string (* 4 display-indent) ? )
 		 (make-string display-indent ?\t))))
     ;; 
@@ -219,13 +218,13 @@
 	     (progn (forward-line 0)
 		    (re-search-forward
 		     "[\t ]*" (line-end-position) t)))))
+      
       (if (= non-whitespace (line-end-position))
 	  (end-of-line)
 	(if (> non-whitespace (point))
-	    (goto-char non-whitespace))
-	))
-    (ion-replace-whitespace-end-line (point) "")
-    )
+	    (goto-char non-whitespace))))
+    
+    (ion-replace-whitespace-end-line (point) ""))
   
   
   (setq font-lock-defaults '(ion-mode-highlights))
