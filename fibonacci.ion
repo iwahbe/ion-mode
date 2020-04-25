@@ -1,0 +1,29 @@
+# Indented according to major-mode
+
+fn fib n
+    if test $n -le 1
+        echo $n
+    else
+        let output previous = 1 1
+        for _ in 2..$n
+            let temp = $output
+            let output += $previous
+            let previous = $temp
+            # This also works, but has a higher performance penalty:
+            # let output previous = $((output + previous)) $output
+        end
+        echo $output
+    end
+end
+
+for i in 1..20
+    fib $i
+end
+
+if false
+    echo "Finished $abc@abc" 'Also Finished $abc@abc'
+end
+
+# Example taken from vmchale/ion-vim
+# Theme: kaolin-galaxy
+# Numbers; highlight-numbers package
