@@ -101,6 +101,9 @@
 	  syn-table
 	  ))
 
+  (defvar ion-mode-variable-regex "[A-Z|a-z|_]"
+    "The regex used to define what can appear in an ion variable")
+
   ;; Used to automate comment insertion
   (setq comment-start "#")
   (setq comment-padding " ")
@@ -228,59 +231,55 @@
   
   
   (setq font-lock-defaults '(ion-mode-highlights))
+
+  (defun ion-mode-match-assembly (before-frame var-needed &optional after-frame)
+    "Regex matching (var)(frame)(ion-mode-variable-regex)(frame)"
+    (concat "\\([$@]" before-frame "\\)\\(" ion-mode-variable-regex
+	    (if (equal '+ var-needed) "+" (if (equal '* var-needed) "*")) "\\)"
+	    (if after-frame (concat "\\(" after-frame "\\)") "")))
   
   (font-lock-add-keywords 'ion-mode
-			  '(
-			    ("\\(fn\\) \\([a-z|A-Z|_|\\-]+\\)"
+			  `(
+			    (,(concat "\\(fn\\) \\(" ion-mode-variable-regex "+\\)")
 			     ;; fontify fn as keyword
 			     (1 font-lock-keyword-face)
 			     ;; fontify fn name as fn name
 			     (2 font-lock-function-name-face))
-			    ("\\([$@]\\)\\([A-Z|a-z|_]+\\)"
+			    (,(ion-mode-match-assembly "" '+)
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face))
-			    ("\\([$@]{\\)\\([A-Z|a-z| |_]*\\)\\(}\\)"
+			    (,(ion-mode-match-assembly "{" '* "}")
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face)
 			     (3 font-lock-builtin-face))
-			    ("\\([$@](\\)\\([A-Z|a-z| |_]*\\)\\()\\)"
+			    (,(ion-mode-match-assembly "(" '* ")")
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face)
 			     (3 font-lock-builtin-face))
-			    ;; this highlights test in variables
+			    
+			    ;; this highlights variables in quotes which are
+			    ;; already highlighted by the syntactic highlighting
+			    ;; pass
+
 			    ((lambda (l)
 			       (ion-find-quote-variables
-				l "\\([$@]\\)\\([A-Z|a-z|_]+\\)"))
-			     1 font-lock-builtin-face t)
+				l ,(ion-mode-match-assembly "" '+)))
+			     (1 font-lock-builtin-face t)
+			     (2 font-lock-variable-name-face t))
 			    
 			    ((lambda (l)
 			       (ion-find-quote-variables
-				l "\\([$@]\\)\\([A-Z|a-z|_]+\\)"))
-			     2 font-lock-variable-name-face t)
+				l ,(ion-mode-match-assembly "{" '+ "}")))
+			     (1 font-lock-builtin-face t)
+			     (2 font-lock-variable-name-face t)
+			     (3 font-lock-builtin-face t))
+			    
 			    ((lambda (l)
 			       (ion-find-quote-variables
-				l "\\([$@]{\\)\\([A-Z|a-z|_]+\\)\\(}\\)"))
-			     2 font-lock-variable-name-face t)
-			    ((lambda (l)
-			       (ion-find-quote-variables
-				l "\\([$@]{\\)\\([A-Z|a-z|_]+\\)\\(}\\)"))
-			     1 font-lock-builtin-face t)
-			    ((lambda (l)
-			       (ion-find-quote-variables
-				l "\\([$@]{\\)\\([A-Z|a-z|_]+\\)\\(}\\)"))
-			     3 font-lock-builtin-face t)
-			    			    ((lambda (l)
-			       (ion-find-quote-variables
-				l "\\([$@](\\)\\([A-Z|a-z|_]+\\)\\()\\)"))
-			     2 font-lock-variable-name-face t)
-			    ((lambda (l)
-			       (ion-find-quote-variables
-				l "\\([$@](\\)\\([A-Z|a-z|_]+\\)\\()\\)"))
-			     1 font-lock-builtin-face t)
-			    ((lambda (l)
-			       (ion-find-quote-variables
-				l "\\([$@](\\)\\([A-Z|a-z|_]+\\)\\()\\)"))
-			     3 font-lock-builtin-face t)
+				l ,(ion-mode-match-assembly "(" '+ ")")))
+			     (1 font-lock-builtin-face t)
+			     (2 font-lock-variable-name-face t)
+			     (3 font-lock-builtin-face t))
 			    ))
 
   (setq indent-line-function #'ion-indent-line)
