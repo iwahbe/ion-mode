@@ -89,17 +89,42 @@
     "A list of all ion-shell keywords"
     (append ion-indent-forward-keywords
 	    ion-indent-backwards-keywords
-	    ion-indent-neutral-keywords))
+	    ion-indent-neutral-keywords))  
+
   
   (setq ion-mode-syntax-table
 	(let ((syn-table (make-syntax-table prog-mode-syntax-table)))
-					;single quotes are strings
+	  ;; single quotes are strings that cannot be escaped
 	  (modify-syntax-entry ?\' "\"" syn-table)
 	  (modify-syntax-entry ?\" "\"" syn-table)
+	  ;; comments start with # and end with a new line
 	  (modify-syntax-entry ?# "<" syn-table)
 	  (modify-syntax-entry ?\n ">" syn-table)
 	  syn-table
 	  ))
+
+  (defvar ion-mode-single-quote-syntax-table
+    (let ((syn-table (make-syntax-table ion-mode-syntax-table)))
+      (modify-syntax-entry ?\\ "." syn-table) syn-table)
+    "A syntax table for withing single quotes. It does not allow escapes")
+
+  ;; Note: this function is run after the syntactic analyzer but before the
+  ;; keyword step. It allows the user to override the syntax-table. 
+  (set (make-local-variable 'syntax-propertize-function)
+       #'ion-mode-syntax-propertize-function)
+
+  (defun ion-mode-syntax-propertize-function (start end)
+    "Currently used to make '' strings unescapable"
+    (goto-char start)
+    (while (re-search-forward "'" end t)
+      (let ((begin-string (nth 3 (syntax-ppss (match-beginning 0)))))
+      (if (and begin-string ; inside a string
+	       (char-equal ?\' begin-string) ; its a ' string
+	       (equal (char-after) ?\') ; we are at the end of the string
+	       )
+	  (put-text-property (nth 8 (syntax-ppss (point))) (point) 'syntax-table
+			     ion-mode-single-quote-syntax-table)))
+      (goto-char (1+ (point)))))
 
   (defvar ion-mode-variable-regex "[A-Z|a-z|_]"
     "The regex used to define what can appear in an ion variable")
@@ -188,7 +213,7 @@
        display-level)))
 
   (defun ion-replace-whitespace-begin-line (pos repl)
-    "Replaces whitespace before any charicter text on the line where 'pos' is with repl"
+    "Replaces whitespace before any character text on the line where 'pos' is with repl"
     (save-excursion
       (forward-line 0)
       (let ((end-point (re-search-forward "[\t ]*" (line-end-position) t)))
@@ -228,8 +253,7 @@
 	    (goto-char non-whitespace))))
     
     (ion-replace-whitespace-end-line (point) ""))
-  
-  
+
   (setq font-lock-defaults '(ion-mode-highlights))
 
   (defun ion-mode-match-assembly (before-frame var-needed &optional after-frame)
@@ -237,6 +261,7 @@
     (concat "\\([$@]" before-frame "\\)\\(" ion-mode-variable-regex
 	    (if (equal '+ var-needed) "+" (if (equal '* var-needed) "*")) "\\)"
 	    (if after-frame (concat "\\(" after-frame "\\)") "")))
+
   
   (font-lock-add-keywords 'ion-mode
 			  `(
