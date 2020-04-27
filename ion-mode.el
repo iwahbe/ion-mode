@@ -39,6 +39,17 @@
 ;;            else
 ;;                echo "$x < $y"
 ;;            end
+;;
+;; Syntax highlighting is surprisingly complicated.  This is due to the
+;; difference between shell languages and normal languages.  Specifically there
+;; are two different types of strings, and one type must show variable
+;; highlighting, while the other must ignore the escape character.  The firs
+;; problem is handled by doing a second run to highlight variables in double
+;; quoted strings using the font-lock-add-keywords interface.  For the second, I
+;; hack into the syntax highlighting function by defining my own
+;; syntax-propertize-function and manually set otherwise escape character to be
+;; a punctuation character within single quoted strings.
+
 
 
 ;; MIT License
