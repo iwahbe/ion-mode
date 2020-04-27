@@ -27,5 +27,5 @@ require customization.
 
 Example:
 
-![Fibonacci code example](fib.jpg)
+![Fibonacci code example](ion-screenshot.jpg)
 
