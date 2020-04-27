@@ -20,9 +20,9 @@ for i in 1..20
     fib $i
 end
 
-if false
-	echo "Finished $abc@abc" 'Also Finished $abc@abc'
-end
+
+echo "Finished $abc@abc" 'Also Finished $abc@abc'
+
 
 # Example taken from vmchale/ion-vim
 # Theme: kaolin-galaxy
