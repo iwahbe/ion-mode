@@ -1,4 +1,5 @@
-;;; package --- summary
+;;; ion-mode.el --- A Major mode for ion-shell scripting
+;; -*- lexical-binding: t -*-
 ;; Provides editing functionality for the ion-shell
 
 ;;; Commentary:
@@ -76,6 +77,7 @@
 
 ;;; Code:
 
+;;;###autoload
 (define-derived-mode ion-mode prog-mode "ion"
   "major mode for editing ion scripts"
   
@@ -96,6 +98,8 @@
       "status" "suspend" "test" "time" "true" "unalias" "wait")
     "ion-shell keywords that don't effect indentation")
 
+  (declare-function ion-keywrods "ion-mode" ())
+  
   (defun ion-keywords ()
     "A list of all ion-shell keywords"
     (append ion-indent-forward-keywords
@@ -152,6 +156,8 @@
 		 'words)
 		font-lock-keyword-face))
     "regexp optimal for of keywords to highlight")
+
+  (declare-function ion-find-quote-variables "ion-mode" (limit regexp))
   
   (defun ion-find-quote-variables (limit regexp)
     "Used to find variables in quotes"
@@ -281,6 +287,9 @@
 			     (1 font-lock-keyword-face)
 			     ;; fontify fn name as fn name
 			     (2 font-lock-function-name-face))
+				(,(concat "\\(let\\) \\(" ion-mode-variable-regex "+\\)")
+				 (1 font-lock-keyword-face)
+				 (2 font-lock-variable-name-face))
 			    (,(ion-mode-match-assembly "" '+)
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face))
