@@ -4,7 +4,7 @@ Emacs major mode for scripting with the [ion-shell](https://gitlab.redox-os.org/
 
 ## Installation
 You can download this package from github and put it in your load path, then use
-`(require ion-mode)`. If you want to automatically active `ion-mode`, you would
+`(require 'ion-mode)`. If you want to automatically active `ion-mode`, you would
 need to add `(add-to-list 'auto-mode-alist '("\\.ion\\'" . ion-mode))` to your
 `init.el`. 
 
