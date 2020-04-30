@@ -1,0 +1,19 @@
+
+
+let global = 0
+echo "test" # should give global
+
+
+if true
+	let scoped = 1
+	echo "test" # should give global and scoped
+	
+end
+if
+	let other = 2
+	echo "test" # should give global and other
+	
+end
+
+let after = 3
+echo "test" # should give after and global
