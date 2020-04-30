@@ -3,6 +3,8 @@
 let global = 0
 echo "test" # should give global
 
+let typed: int = 4
+#should show up in every test
 
 if true
 	let scoped = 1
