@@ -104,7 +104,7 @@
     "A list of all ion-shell keywords"
     (append ion-indent-forward-keywords
 	    ion-indent-backwards-keywords
-	    ion-indent-neutral-keywords))  
+	    ion-indent-neutral-keywords))
 
   
   (setq ion-mode-syntax-table
@@ -124,12 +124,14 @@
     "A syntax table for withing single quotes. It does not allow escapes")
 
   ;; Note: this function is run after the syntactic analyzer but before the
-  ;; keyword step. It allows the user to override the syntax-table. 
+  ;; keyword step. It allows the user to override the syntax-table.
   (set (make-local-variable 'syntax-propertize-function)
        #'ion-mode-syntax-propertize-function)
 
   (defun ion-mode-syntax-propertize-function (start end)
-    "Currently used to make '' strings unescapable"
+	"Hook into the syntax propertize function to create non-standard text properties.
+`START' and `END' define the limits of the search."
+    ;Currently used to make '' strings inescapable
     (goto-char start)
     (while (re-search-forward "'" end t)
       (let ((begin-string (nth 3 (syntax-ppss (match-beginning 0)))))
@@ -160,7 +162,9 @@
   (declare-function ion-find-quote-variables "ion-mode" (limit regexp))
   
   (defun ion-find-quote-variables (limit regexp)
-    "Used to find variables in quotes"
+    "Used to find variables to highlight in string quotes.
+    A variable is any string that matches `REGEXP'.
+    It searches from the current point to `LIMIT'."
     (let ((original-match-data nil))
       (save-match-data
 	(while (and (null original-match-data)
@@ -178,7 +182,7 @@
   (declare-function ion-is-command "ion-mode" (pos))
   
   (defun ion-is-command (pos)
-    "Checks if 'pos' is inside a string or comment"
+    "Checks if `POS' is inside a string or comment"
     (let ((state (syntax-ppss pos)))
       (not (or
 	    (nth 3 state) ; inside a string
@@ -188,13 +192,13 @@
   (declare-function ion-line-has "ion-mode" (point regx))
   
   (defun ion-line-has (pos regx)
-    "Checks if the line containing 'point' contains 'regx'"
+    "Checks if the line containing `POS' contains `REGX'"
     (save-excursion
       (beginning-of-line)
       (re-search-forward regx (line-end-position) t)))
   
   (defun ion-indentation-level (point)
-    "Returns a pair, the indentation level and the display offset"
+    "Returns a pair, the indentation level and the display offset at `POINT'"
     ;; This function works by recursing up to the top of the screen each call
     ;; finds the indentation change of the current line and adds it to the past
     ;; line. Some keywords have a special relation to indentation, like 'else'
@@ -230,7 +234,7 @@
        display-level)))
 
   (defun ion-replace-whitespace-begin-line (pos repl)
-    "Replaces whitespace before any character text on the line where 'pos' is with repl"
+    "Replaces whitespace before any character text on the line where `POS' is with `REPL'"
     (save-excursion
       (forward-line 0)
       (let ((end-point (re-search-forward "[\t ]*" (line-end-position) t)))
@@ -238,12 +242,12 @@
 	(insert repl))))
 
   (defun ion-replace-whitespace-end-line (pos repl)
-    "Replaces whitespace at the end of the line where 'pos' is with repl"
+    "Replaces whitespace at the end of the line where `POS' is with the string `REPL'"
     (save-excursion
       (end-of-line)
       (let ((begin-point (re-search-backward
 			  "[[:graph:]]" (line-beginning-position) t)))
-	(if (not (>= (1+ (point)) (line-end-position)))
+	(if (< (1+ (point)) (line-end-position))
 	    (delete-region (1+ (point)) (line-end-position)))
 	(insert repl))))
 
@@ -254,10 +258,11 @@
 		 ((indent (save-excursion (ion-indentation-level
 					   (line-beginning-position))))
 		  (display-indent (+ (car indent) (cdr indent))))
-	       (if (not indent-tabs-mode)
-		   (make-string (* 4 display-indent) ? )
-		 (make-string display-indent ?\t))))
-    ;; 
+	     (if indent-tabs-mode
+			 (make-string display-indent ?\t)
+		   (make-string (* 4 display-indent) ? ) ; this is an escaped space
+		   )))
+    ;; cleanup whitespace
     (let ((non-whitespace
 	   (save-excursion
 	     (progn (forward-line 0)
@@ -332,7 +337,7 @@
 
 
 (defun ion-lexical-level (point)
-  "Guess the lexical level of an ion function from indentation."
+  "Guess the lexical level of at `POINT' from indentation."
   (let ((level (save-excursion (ion-indentation-level (point)))))
 	(+ (car level) (cdr level))))
 
@@ -376,7 +381,10 @@
 	(mapcar(lambda (s) (concat "$" s)) vars))))
 
 (defun company-ion (command &optional arg &rest ignored)
-  "Company backend for ion-mode."
+  "Company backend for ion-mode.
+`COMMAND' gives the type of command.
+`ARG' gives the arguments for that command.
+`IGNORED' prevents errors when called."
   (interactive '(interactive))
   (cl-case command
 	
