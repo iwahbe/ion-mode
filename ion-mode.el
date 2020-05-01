@@ -118,7 +118,7 @@
 	  syn-table
 	  ))
 
-  (defvar ion-mode-single-quote-syntax-table
+  (defvar ion-single-quote-syntax-table
     (let ((syn-table (make-syntax-table ion-mode-syntax-table)))
       (modify-syntax-entry ?\\ "." syn-table) syn-table)
     "A syntax table for withing single quotes. It does not allow escapes")
@@ -126,9 +126,9 @@
   ;; Note: this function is run after the syntactic analyzer but before the
   ;; keyword step. It allows the user to override the syntax-table.
   (set (make-local-variable 'syntax-propertize-function)
-       #'ion-mode-syntax-propertize-function)
+       #'ion-syntax-propertize-function)
 
-  (defun ion-mode-syntax-propertize-function (start end)
+  (defun ion-syntax-propertize-function (start end)
 	"Hook into the syntax propertize function to create non-standard text properties.
 `START' and `END' define the limits of the search."
     ;Currently used to make '' strings inescapable
@@ -140,10 +140,10 @@
 	       (equal (char-after) ?\') ; we are at the end of the string
 	       )
 	  (put-text-property (nth 8 (syntax-ppss (point))) (point) 'syntax-table
-			     ion-mode-single-quote-syntax-table)))
+			     ion-single-quote-syntax-table)))
       (goto-char (1+ (point)))))
 
-  (defvar ion-mode-variable-regex "[A-Z|a-z|_]"
+  (defvar ion-variable-regex "[A-Z|a-z|_]"
     "The regex used to define what can appear in an ion variable")
 
   ;; Used to automate comment insertion
@@ -152,7 +152,7 @@
   
   (set-syntax-table ion-mode-syntax-table)
   
-  (defvar ion-mode-highlights
+  (defvar ion-highlights
     (list (cons (regexp-opt
 		 (ion-keywords)
 		 'words)
@@ -276,33 +276,33 @@
     
     (ion-replace-whitespace-end-line (point) ""))
 
-  (setq font-lock-defaults '(ion-mode-highlights))
+  (setq font-lock-defaults '(ion-highlights))
 
-  (defun ion-mode-match-assembly (before-frame var-needed &optional after-frame)
-    "Regex matching (var)(frame)(ion-mode-variable-regex)(frame)"
-    (concat "\\([$@]" before-frame "\\)\\(" ion-mode-variable-regex
+  (defun ion-match-assembly (before-frame var-needed &optional after-frame)
+    "Regex matching (var)(frame)(ion-variable-regex)(frame)"
+    (concat "\\([$@]" before-frame "\\)\\(" ion-variable-regex
 	    (if (equal '+ var-needed) "+" (if (equal '* var-needed) "*")) "\\)"
 	    (if after-frame (concat "\\(" after-frame "\\)") "")))
 
   
   (font-lock-add-keywords 'ion-mode
 			  `(
-			    (,(concat "\\(fn\\) \\(" ion-mode-variable-regex "+\\)")
+			    (,(concat "\\(fn\\) \\(" ion-variable-regex "+\\)")
 			     ;; fontify fn as keyword
 			     (1 font-lock-keyword-face)
 			     ;; fontify fn name as fn name
 			     (2 font-lock-function-name-face))
-				(,(concat "\\(let\\) \\(" ion-mode-variable-regex "+\\)")
+				(,(concat "\\(let\\) \\(" ion-variable-regex "+\\)")
 				 (1 font-lock-keyword-face)
 				 (2 font-lock-variable-name-face))
-			    (,(ion-mode-match-assembly "" '+)
+			    (,(ion-match-assembly "" '+)
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face))
-			    (,(ion-mode-match-assembly "{" '* "}")
+			    (,(ion-match-assembly "{" '* "}")
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face)
 			     (3 font-lock-builtin-face))
-			    (,(ion-mode-match-assembly "(" '* ")")
+			    (,(ion-match-assembly "(" '* ")")
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face)
 			     (3 font-lock-builtin-face))
@@ -313,20 +313,20 @@
 
 			    ((lambda (l)
 			       (ion-find-quote-variables
-				l ,(ion-mode-match-assembly "" '+)))
+				l ,(ion-match-assembly "" '+)))
 			     (1 font-lock-builtin-face t)
 			     (2 font-lock-variable-name-face t))
 			    
 			    ((lambda (l)
 			       (ion-find-quote-variables
-				l ,(ion-mode-match-assembly "{" '+ "}")))
+				l ,(ion-match-assembly "{" '+ "}")))
 			     (1 font-lock-builtin-face t)
 			     (2 font-lock-variable-name-face t)
 			     (3 font-lock-builtin-face t))
 			    
 			    ((lambda (l)
 			       (ion-find-quote-variables
-				l ,(ion-mode-match-assembly "(" '+ ")")))
+				l ,(ion-match-assembly "(" '+ ")")))
 			     (1 font-lock-builtin-face t)
 			     (2 font-lock-variable-name-face t)
 			     (3 font-lock-builtin-face t))
@@ -348,7 +348,7 @@ Variable is declared with name `STRING'"
 		(concat "@" string)))
 
 
-(defun ion-mode-company-completions ()
+(defun ion-company-completions ()
   "Find strings to feed to company-ion."
   ;; This strategy fails because it will only account for changes in indentation
   ;; when it sees a let binding. Instead, it must check each line.
@@ -361,8 +361,8 @@ Variable is declared with name `STRING'"
 	  (let ((current-indent (ion-lexical-level (point))))
 		  (while (re-search-forward
 				  (concat "\\(let \\)\\("
-						  ion-mode-variable-regex "+\\)\\(: "
-						  ion-mode-variable-regex "+\\)?\\( [-+]?= \\)")
+						  ion-variable-regex "+\\)\\(: "
+						  ion-variable-regex "+\\)?\\( [-+]?= \\)")
 				  (line-end-position) t)
 			(let ((mbeg2 (match-beginning 2))
 				  (mend2 (match-end 2))
@@ -395,7 +395,7 @@ Variable is declared with name `STRING'"
 
 	(candidates
 	 (cl-remove-if-not (lambda (s) (string-prefix-p arg s))
-					(ion-mode-company-completions)))))
+					(ion-company-completions)))))
 
 (if (featurep 'company) (add-to-list 'company-backends #'company-ion))
 
