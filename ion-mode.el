@@ -330,5 +330,66 @@
   (setq indent-line-function #'ion-indent-line)
   )
 
+
+(defun ion-lexical-level (point)
+  "Guess the lexical level of an ion function from indentation."
+  (let ((level (save-excursion (ion-indentation-level (point)))))
+	(+ (car level) (cdr level))))
+
+(defun ion-mode-company-completions ()
+  "Find strings to feed to company-ion."
+  ;; This strategy fails because it will only account for changes in indentation
+  ;; when it sees a let binding. Instead, it must check each line.
+  (save-excursion
+  (let ((indent-scope (ion-lexical-level (point)))
+		(vars ()))
+
+	(while (not (= (point-min) (point)))
+	  (message "%s" (point))
+	  ;; Find all let statements, should be done each lien
+	  (let ((current-indent (ion-lexical-level (point))))
+		  (while (re-search-forward
+				  (concat "\\(let \\)\\("
+						  ion-mode-variable-regex "+\\)\\(: "
+						  ion-mode-variable-regex"+\\)?\\( [-+]?= \\)")
+				  (line-end-position) t)
+			(let (
+				  (mbeg2 (match-beginning 2))
+				  (mend2 (match-end 2))
+				  (mbeg0 (match-beginning 0))
+				  (mend0 (match-end 0))
+				  )
+			  (if (and (ion-is-command mbeg0)
+					   (<= current-indent indent-scope))
+				  (add-to-list
+				   'vars (buffer-substring-no-properties
+						  mbeg2 mend2))
+				)
+			  (goto-char mend0)
+			  ))
+		
+		;; update indentation level, should be done each line
+		(if (< current-indent indent-scope) (setq indent-scope current-indent))
+		(forward-line -1))
+	  ;; end of per line loop
+	  )
+	(mapcar(lambda (s) (concat "$" s)) vars))))
+
+(defun company-ion (command &optional arg &rest ignored)
+  "Company backend for ion-mode."
+  (interactive '(interactive))
+  (cl-case command
+	
+	(interactive (company-begin-backend 'company-ion))
+
+	(prefix (and (eq major-mode 'ion-mode) (company-grab-symbol)))
+
+	(candidates
+	 (cl-remove-if-not (lambda (s) (string-prefix-p arg s))
+					(ion-mode-company-completions)))))
+
+(if (featurep 'company) (add-to-list 'company-backends #'company-ion))
+
+
 (provide 'ion-mode)
 ;;; ion-mode ends here

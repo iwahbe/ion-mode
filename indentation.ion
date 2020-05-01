@@ -8,13 +8,12 @@ let typed: int = 4
 
 if true
 	let scoped = 1
+	let t: string = 1
 	echo "test" # should give global and scoped
-	
 end
 if
 	let other = 2
 	echo "test" # should give global and other
-	
 end
 
 let after = 3
