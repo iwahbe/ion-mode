@@ -41,5 +41,5 @@ called `company-ion`. This can be added in the normal way:
 
 Example:
 
-![Fibonacci code example](fib.jpg)
+![Fibonacci code example](ion-screenshot.jpg)
 
