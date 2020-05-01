@@ -36,7 +36,7 @@ require customization. If you use company, then `ion-mode` provides a backend
 called `company-ion`. This can be added in the normal way:
 
 ``` emacs-lisp
-(add-to-list 'company-backends company-ion)
+(add-to-list 'company-backends #'company-ion)
 ```
 
 Example:
