@@ -98,13 +98,18 @@
       "status" "suspend" "test" "time" "true" "unalias" "wait")
     "ion-shell keywords that don't effect indentation")
 
+  (defvar ion-company-finish-bracket nil
+	"If ion-company should provide the end of brackets.
+As an example, if the variable 'foo' was defined, then
+should '${f' complete to '${foo} or '${foo'. It defualts to '${foo'")
+
   (declare-function ion-keywrods "ion-mode" ())
   
   (defun ion-keywords ()
     "A list of all ion-shell keywords"
     (append ion-indent-forward-keywords
 	    ion-indent-backwards-keywords
-	    ion-indent-neutral-keywords))  
+	    ion-indent-neutral-keywords))
 
   
   (setq ion-mode-syntax-table
@@ -118,18 +123,20 @@
 	  syn-table
 	  ))
 
-  (defvar ion-mode-single-quote-syntax-table
+  (defvar ion-single-quote-syntax-table
     (let ((syn-table (make-syntax-table ion-mode-syntax-table)))
       (modify-syntax-entry ?\\ "." syn-table) syn-table)
     "A syntax table for withing single quotes. It does not allow escapes")
 
   ;; Note: this function is run after the syntactic analyzer but before the
-  ;; keyword step. It allows the user to override the syntax-table. 
+  ;; keyword step. It allows the user to override the syntax-table.
   (set (make-local-variable 'syntax-propertize-function)
-       #'ion-mode-syntax-propertize-function)
+       #'ion-syntax-propertize-function)
 
-  (defun ion-mode-syntax-propertize-function (start end)
-    "Currently used to make '' strings unescapable"
+  (defun ion-syntax-propertize-function (start end)
+	"Hook into the syntax propertize function to create non-standard text properties.
+`START' and `END' define the limits of the search."
+    ;Currently used to make '' strings inescapable
     (goto-char start)
     (while (re-search-forward "'" end t)
       (let ((begin-string (nth 3 (syntax-ppss (match-beginning 0)))))
@@ -138,10 +145,10 @@
 	       (equal (char-after) ?\') ; we are at the end of the string
 	       )
 	  (put-text-property (nth 8 (syntax-ppss (point))) (point) 'syntax-table
-			     ion-mode-single-quote-syntax-table)))
+			     ion-single-quote-syntax-table)))
       (goto-char (1+ (point)))))
 
-  (defvar ion-mode-variable-regex "[A-Z|a-z|_]"
+  (defvar ion-variable-regex "[A-Z|a-z|_]"
     "The regex used to define what can appear in an ion variable")
 
   ;; Used to automate comment insertion
@@ -150,7 +157,7 @@
   
   (set-syntax-table ion-mode-syntax-table)
   
-  (defvar ion-mode-highlights
+  (defvar ion-highlights
     (list (cons (regexp-opt
 		 (ion-keywords)
 		 'words)
@@ -160,7 +167,9 @@
   (declare-function ion-find-quote-variables "ion-mode" (limit regexp))
   
   (defun ion-find-quote-variables (limit regexp)
-    "Used to find variables in quotes"
+    "Used to find variables to highlight in string quotes.
+    A variable is any string that matches `REGEXP'.
+    It searches from the current point to `LIMIT'."
     (let ((original-match-data nil))
       (save-match-data
 	(while (and (null original-match-data)
@@ -178,7 +187,7 @@
   (declare-function ion-is-command "ion-mode" (pos))
   
   (defun ion-is-command (pos)
-    "Checks if 'pos' is inside a string or comment"
+    "Checks if `POS' is inside a string or comment"
     (let ((state (syntax-ppss pos)))
       (not (or
 	    (nth 3 state) ; inside a string
@@ -188,13 +197,13 @@
   (declare-function ion-line-has "ion-mode" (point regx))
   
   (defun ion-line-has (pos regx)
-    "Checks if the line containing 'point' contains 'regx'"
+    "Checks if the line containing `POS' contains `REGX'"
     (save-excursion
       (beginning-of-line)
       (re-search-forward regx (line-end-position) t)))
   
   (defun ion-indentation-level (point)
-    "Returns a pair, the indentation level and the display offset"
+    "Returns a pair, the indentation level and the display offset at `POINT'"
     ;; This function works by recursing up to the top of the screen each call
     ;; finds the indentation change of the current line and adds it to the past
     ;; line. Some keywords have a special relation to indentation, like 'else'
@@ -230,7 +239,7 @@
        display-level)))
 
   (defun ion-replace-whitespace-begin-line (pos repl)
-    "Replaces whitespace before any character text on the line where 'pos' is with repl"
+    "Replaces whitespace before any character text on the line where `POS' is with `REPL'"
     (save-excursion
       (forward-line 0)
       (let ((end-point (re-search-forward "[\t ]*" (line-end-position) t)))
@@ -238,12 +247,12 @@
 	(insert repl))))
 
   (defun ion-replace-whitespace-end-line (pos repl)
-    "Replaces whitespace at the end of the line where 'pos' is with repl"
+    "Replaces whitespace at the end of the line where `POS' is with the string `REPL'"
     (save-excursion
       (end-of-line)
       (let ((begin-point (re-search-backward
 			  "[[:graph:]]" (line-beginning-position) t)))
-	(if (not (>= (1+ (point)) (line-end-position)))
+	(if (< (1+ (point)) (line-end-position))
 	    (delete-region (1+ (point)) (line-end-position)))
 	(insert repl))))
 
@@ -254,10 +263,11 @@
 		 ((indent (save-excursion (ion-indentation-level
 					   (line-beginning-position))))
 		  (display-indent (+ (car indent) (cdr indent))))
-	       (if (not indent-tabs-mode)
-		   (make-string (* 4 display-indent) ? )
-		 (make-string display-indent ?\t))))
-    ;; 
+	     (if indent-tabs-mode
+			 (make-string display-indent ?\t)
+		   (make-string (* 4 display-indent) ? ) ; this is an escaped space
+		   )))
+    ;; cleanup whitespace
     (let ((non-whitespace
 	   (save-excursion
 	     (progn (forward-line 0)
@@ -271,33 +281,33 @@
     
     (ion-replace-whitespace-end-line (point) ""))
 
-  (setq font-lock-defaults '(ion-mode-highlights))
+  (setq font-lock-defaults '(ion-highlights))
 
-  (defun ion-mode-match-assembly (before-frame var-needed &optional after-frame)
-    "Regex matching (var)(frame)(ion-mode-variable-regex)(frame)"
-    (concat "\\([$@]" before-frame "\\)\\(" ion-mode-variable-regex
+  (defun ion-match-assembly (before-frame var-needed &optional after-frame)
+    "Regex matching (var)(frame)(ion-variable-regex)(frame)"
+    (concat "\\([$@]" before-frame "\\)\\(" ion-variable-regex
 	    (if (equal '+ var-needed) "+" (if (equal '* var-needed) "*")) "\\)"
 	    (if after-frame (concat "\\(" after-frame "\\)") "")))
 
   
   (font-lock-add-keywords 'ion-mode
 			  `(
-			    (,(concat "\\(fn\\) \\(" ion-mode-variable-regex "+\\)")
+			    (,(concat "\\(fn\\) \\(" ion-variable-regex "+\\)")
 			     ;; fontify fn as keyword
 			     (1 font-lock-keyword-face)
 			     ;; fontify fn name as fn name
 			     (2 font-lock-function-name-face))
-				(,(concat "\\(let\\) \\(" ion-mode-variable-regex "+\\)")
+				(,(concat "\\(let\\) \\(" ion-variable-regex "+\\)")
 				 (1 font-lock-keyword-face)
 				 (2 font-lock-variable-name-face))
-			    (,(ion-mode-match-assembly "" '+)
+			    (,(ion-match-assembly "" '+)
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face))
-			    (,(ion-mode-match-assembly "{" '* "}")
+			    (,(ion-match-assembly "{" '* "}")
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face)
 			     (3 font-lock-builtin-face))
-			    (,(ion-mode-match-assembly "(" '* ")")
+			    (,(ion-match-assembly "(" '* ")")
 			     (1 font-lock-builtin-face)
 			     (2 font-lock-variable-name-face)
 			     (3 font-lock-builtin-face))
@@ -308,20 +318,20 @@
 
 			    ((lambda (l)
 			       (ion-find-quote-variables
-				l ,(ion-mode-match-assembly "" '+)))
+				l ,(ion-match-assembly "" '+)))
 			     (1 font-lock-builtin-face t)
 			     (2 font-lock-variable-name-face t))
 			    
 			    ((lambda (l)
 			       (ion-find-quote-variables
-				l ,(ion-mode-match-assembly "{" '+ "}")))
+				l ,(ion-match-assembly "{" '+ "}")))
 			     (1 font-lock-builtin-face t)
 			     (2 font-lock-variable-name-face t)
 			     (3 font-lock-builtin-face t))
 			    
 			    ((lambda (l)
 			       (ion-find-quote-variables
-				l ,(ion-mode-match-assembly "(" '+ ")")))
+				l ,(ion-match-assembly "(" '+ ")")))
 			     (1 font-lock-builtin-face t)
 			     (2 font-lock-variable-name-face t)
 			     (3 font-lock-builtin-face t))
@@ -329,6 +339,87 @@
 
   (setq indent-line-function #'ion-indent-line)
   )
+
+
+(defun ion-lexical-level (point)
+  "Guess the lexical level of at `POINT' from indentation."
+  (let ((level (save-excursion (ion-indentation-level (point)))))
+	(+ (car level) (cdr level))))
+
+(defun ion-variable-permutations (string)
+  "Add possibel ways to call a variabele in ion-shell.
+Variable is declared with name `STRING'"
+  (list (concat "$" string) (concat "${" string (if ion-company-finish-bracket "}" ""))
+		(concat "@" string) (concat "@{" string (if ion-company-finish-bracket "}" ""))))
+
+
+(defun ion-company-completions ()
+  "Find strings to feed to company-ion."
+  ;; This strategy fails because it will only account for changes in indentation
+  ;; when it sees a let binding. Instead, it must check each line.
+  (save-excursion
+  (let ((indent-scope (ion-lexical-level (point)))
+		(vars ()))
+
+	(while (not (= (point-min) (point)))
+	  ;; Find all let statements, should be done each line
+	  (let ((current-indent (ion-lexical-level (point))))
+		  (while (re-search-forward
+				  (concat "\\(let \\)\\("
+						  ion-variable-regex "+\\)\\(: "
+						  ion-variable-regex "+\\)?\\( [-+]?= \\)")
+				  (line-end-position) t)
+			(let ((mbeg2 (match-beginning 2))
+				  (mend2 (match-end 2))
+				  (mbeg0 (match-beginning 0))
+				  (mend0 (match-end 0)))
+			  (if (and (ion-is-command mbeg0)
+					   (<= current-indent indent-scope))
+				  (dolist (item (ion-variable-permutations
+								 (buffer-substring-no-properties
+						  mbeg2 mend2)))
+					(add-to-list 'vars item)))
+			  (goto-char mend0)
+			  ))
+		;; update indentation level, should be done each line
+		(if (< current-indent indent-scope) (setq indent-scope current-indent))
+		(forward-line -1)))
+	vars)))
+
+(defun ion-grab-symbol ()
+  "Grabs a symbol, as defined by ion."
+  (let* ((sym (company-grab-symbol))
+		 (bracket-search
+		  (buffer-substring-no-properties
+		   (- (point) (+ 2 (length sym))) (point)))
+		 (at-search (buffer-substring-no-properties
+					 (- (point) (+ 1 (length sym))) (point)))
+		 )
+	(cond
+	 ((string-match "[@$]{.*" bracket-search) bracket-search)
+	 
+	 ((string-match "@.*" at-search) at-search)
+	 (t sym)
+	 )))
+
+(defun company-ion (command &optional arg &rest ignored)
+  "Company backend for ion-mode.
+`COMMAND' gives the type of command.
+`ARG' gives the arguments for that command.
+`IGNORED' prevents errors when called."
+  (interactive '(interactive))
+  (cl-case command
+	
+	(interactive (company-begin-backend 'company-ion))
+
+	(prefix (and (eq major-mode 'ion-mode) (ion-grab-symbol)))
+
+	(candidates
+	 (cl-remove-if-not (lambda (s) (string-prefix-p arg s))
+					(ion-company-completions)))))
+
+(if (featurep 'company) (add-to-list 'company-backends #'company-ion))
+
 
 (provide 'ion-mode)
 ;;; ion-mode ends here
