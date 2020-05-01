@@ -341,6 +341,13 @@
   (let ((level (save-excursion (ion-indentation-level (point)))))
 	(+ (car level) (cdr level))))
 
+(defun ion-variable-permutations (string)
+  "Add possibel ways to call a variabele in ion-shell.
+Variable is declared with name `STRING'"
+  (list (concat "$" string)
+		(concat "@" string)))
+
+
 (defun ion-mode-company-completions ()
   "Find strings to feed to company-ion."
   ;; This strategy fails because it will only account for changes in indentation
@@ -350,35 +357,29 @@
 		(vars ()))
 
 	(while (not (= (point-min) (point)))
-	  (message "%s" (point))
-	  ;; Find all let statements, should be done each lien
+	  ;; Find all let statements, should be done each line
 	  (let ((current-indent (ion-lexical-level (point))))
 		  (while (re-search-forward
 				  (concat "\\(let \\)\\("
 						  ion-mode-variable-regex "+\\)\\(: "
-						  ion-mode-variable-regex"+\\)?\\( [-+]?= \\)")
+						  ion-mode-variable-regex "+\\)?\\( [-+]?= \\)")
 				  (line-end-position) t)
-			(let (
-				  (mbeg2 (match-beginning 2))
+			(let ((mbeg2 (match-beginning 2))
 				  (mend2 (match-end 2))
 				  (mbeg0 (match-beginning 0))
-				  (mend0 (match-end 0))
-				  )
+				  (mend0 (match-end 0)))
 			  (if (and (ion-is-command mbeg0)
 					   (<= current-indent indent-scope))
-				  (add-to-list
-				   'vars (buffer-substring-no-properties
-						  mbeg2 mend2))
-				)
+				  (dolist (item (ion-variable-permutations
+								 (buffer-substring-no-properties
+						  mbeg2 mend2)))
+					(add-to-list 'vars item)))
 			  (goto-char mend0)
 			  ))
-		
 		;; update indentation level, should be done each line
 		(if (< current-indent indent-scope) (setq indent-scope current-indent))
-		(forward-line -1))
-	  ;; end of per line loop
-	  )
-	(mapcar(lambda (s) (concat "$" s)) vars))))
+		(forward-line -1)))
+	vars)))
 
 (defun company-ion (command &optional arg &rest ignored)
   "Company backend for ion-mode.
