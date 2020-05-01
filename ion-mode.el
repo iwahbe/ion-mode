@@ -98,6 +98,11 @@
       "status" "suspend" "test" "time" "true" "unalias" "wait")
     "ion-shell keywords that don't effect indentation")
 
+  (defvar ion-company-finish-bracket nil
+	"If ion-company should provide the end of brackets.
+As an example, if the variable 'foo' was defined, then
+should '${f' complete to '${foo} or '${foo'. It defualts to '${foo'")
+
   (declare-function ion-keywrods "ion-mode" ())
   
   (defun ion-keywords ()
@@ -344,8 +349,8 @@
 (defun ion-variable-permutations (string)
   "Add possibel ways to call a variabele in ion-shell.
 Variable is declared with name `STRING'"
-  (list (concat "$" string)
-		(concat "@" string)))
+  (list (concat "$" string) (concat "${" string (if ion-company-finish-bracket "}" ""))
+		(concat "@" string) (concat "@{" string (if ion-company-finish-bracket "}" ""))))
 
 
 (defun ion-company-completions ()
@@ -381,6 +386,22 @@ Variable is declared with name `STRING'"
 		(forward-line -1)))
 	vars)))
 
+(defun ion-grab-symbol ()
+  "Grabs a symbol, as defined by ion."
+  (let* ((sym (company-grab-symbol))
+		 (bracket-search
+		  (buffer-substring-no-properties
+		   (- (point) (+ 2 (length sym))) (point)))
+		 (at-search (buffer-substring-no-properties
+					 (- (point) (+ 1 (length sym))) (point)))
+		 )
+	(cond
+	 ((string-match "[@$]{.*" bracket-search) bracket-search)
+	 
+	 ((string-match "@.*" at-search) at-search)
+	 (t sym)
+	 )))
+
 (defun company-ion (command &optional arg &rest ignored)
   "Company backend for ion-mode.
 `COMMAND' gives the type of command.
@@ -391,7 +412,7 @@ Variable is declared with name `STRING'"
 	
 	(interactive (company-begin-backend 'company-ion))
 
-	(prefix (and (eq major-mode 'ion-mode) (company-grab-symbol)))
+	(prefix (and (eq major-mode 'ion-mode) (ion-grab-symbol)))
 
 	(candidates
 	 (cl-remove-if-not (lambda (s) (string-prefix-p arg s))
