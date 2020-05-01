@@ -23,7 +23,8 @@ Alternatively, you can use `straight` and/or `use-package`. I use
 (use-package ion-mode
   :straight (ion-mode
 	       :host github :repo "iwahbe/ion-mode")
-  :mode ("\\.ion\\'" . ion-mode)
+  :mode (("\\.ion\\'" . ion-mode)
+		 ("/ion/initrc\\'" . ion-mode))
   )
 ```
 
