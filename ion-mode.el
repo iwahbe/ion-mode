@@ -160,7 +160,7 @@ should '${f' complete to '${foo} or '${foo'. It defualts to '${foo'")
   (defvar ion-highlights
     (list (cons (regexp-opt
 		 (ion-keywords)
-		 'words)
+		 'symbolss)
 		font-lock-keyword-face))
     "regexp optimal for of keywords to highlight")
 
@@ -213,19 +213,19 @@ should '${f' complete to '${foo} or '${foo'. It defualts to '${foo'")
       (save-excursion
 	(beginning-of-line)
 	(while (re-search-forward
-		(regexp-opt ion-indent-forward-keywords 'word)
+		(regexp-opt ion-indent-forward-keywords 'symbols)
 		(line-end-position) t)
 	  (if (and (ion-is-command (point))
-		   (not (ion-line-has (point) (regexp-opt '("else if") 'word))))
+		   (not (ion-line-has (point) (regexp-opt '("else if") 'symbols))))
 	      (setq indent-level (1+ indent-level)
 		    display-level (1- display-level))))
 	(beginning-of-line)
 	(while (re-search-forward
-		(regexp-opt ion-indent-backwards-keywords 'word)
+		(regexp-opt ion-indent-backwards-keywords 'symbols)
 		(line-end-position) t)
 	  (if (ion-is-command (point)) (setq indent-level (1- indent-level))))
 	(beginning-of-line)
-	(while (re-search-forward (regexp-opt '("else" "else if") 'word)
+	(while (re-search-forward (regexp-opt '("else" "else if") 'symbols)
 				  (line-end-position) t)
 	  (setq display-level (1- display-level))))
       (forward-line 0)
